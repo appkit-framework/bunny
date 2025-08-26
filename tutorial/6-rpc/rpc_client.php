@@ -7,6 +7,7 @@ use Bunny\ChannelInterface;
 use Bunny\Client;
 use Bunny\Message;
 use React\Promise\Deferred;
+use function React\Async\async;
 use function React\Async\await;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
@@ -35,14 +36,14 @@ class FibonacciRpcClient
         $response = new Deferred();
         $responseQueue = $this->channel->queueDeclare('', false, false, true);
         $subscription = $this->channel->consume(
-            static function (Message $message, Channel $channel, Client $client) use (&$response, $corrId, &$subscription): void {
+            async(static function (Message $message, Channel $channel, Client $client) use (&$response, $corrId, &$subscription): void {
                 if ($message->getHeader('correlation_id') !== $corrId) {
                     return;
                 }
 
                 $response->resolve($message->content);
                 $channel->cancel($subscription->consumerTag);
-            },
+            }),
             $responseQueue->queue,
         );
         $this->channel->publish(

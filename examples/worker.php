@@ -14,22 +14,22 @@ $channel = null;
 $consumerTag = null;
 
 // Capture signals - SIGINT = Ctrl+C; SIGTERM = `kill`
-Loop::addSignal(SIGINT, static function (int $signal) use (&$channel, &$consumerTag): void {
+Loop::addSignal(SIGINT, async(static function (int $signal) use (&$channel, &$consumerTag): void {
     print 'Consumer cancelled\n';
     $channel->cancel($consumerTag);
 
     Loop::addTimer(3, static function (): void {
         Loop::stop();
     });
-});
-Loop::addSignal(SIGTERM, static function (int $signal) use (&$channel, &$consumerTag): void {
+}));
+Loop::addSignal(SIGTERM, async(static function (int $signal) use (&$channel, &$consumerTag): void {
     print 'Consumer cancelled\n';
     $channel->cancel($consumerTag);
 
     Loop::addTimer(3, static function (): void {
         Loop::stop();
     });
-});
+}));
 
 $clientConfig = [
     'host' => 'rabbitmq.example.com',
