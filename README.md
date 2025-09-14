@@ -91,6 +91,22 @@ $bunny = new Client($configuration);
 $bunny->connect();
 ```
 
+<details>
+
+<summary>Using DSN</summary>
+
+```php
+use Bunny\Client;
+use Bunny\Configuration;
+
+$configuration = Configuration::fromDSN('amqp://USERNAME:PASSWORD@HOSTNAME/VHOST');
+
+$bunny = new Client($configuration);
+$bunny->connect();
+```
+
+</details>
+
 ### Connecting securely using TLS(/SSL)
 
 Options for TLS-connections should be specified as array `tls`:  
@@ -114,6 +130,24 @@ $configuration = new Configuration(
 $bunny = new Client($configuration);
 $bunny->connect();
 ```
+
+<details>
+
+<summary>Using DSN</summary>
+
+```php
+use Bunny\Client;
+use Bunny\Configuration;
+
+$configuration = Configuration::fromDSN(
+    'amqp://USERNAME:PASSWORD@HOSTNAME/VHOST?tls[cafile]=ca.pem&tls[local_cert]=client.cert&tls[local_pk]=client.key',
+);
+
+$bunny = new Client($configuration);
+$bunny->connect();
+```
+
+</details>
 
 For options description - please see [SSL context options](https://www.php.net/manual/en/context.ssl.php).
 
