@@ -16,4 +16,5 @@ final class Defaults
     public const HEARTBEAT_CALLBACK = null;
     public const TLS = [];
     public const CLIENT_PROPERTIES = [];
+    public const CONNECTOR = null;
 }
