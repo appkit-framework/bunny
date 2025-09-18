@@ -27,7 +27,7 @@ $ch->consume(static function (Message $msg, Channel $ch, Client $c) use (&$time,
 
     if ($msg->content === 'quit') {
         $runTime = microtime(true) - $time;
-        printf("Consume: Pid: %s, Count: %s, Time: %.6f, Msg/sec: %.0f\n", getmypid(), $count, $runTime, (1 / $runTime) * $count);
+        printf("Consume: Pid: %s, Count: %s, Time: %.6f, Msg/sec: %.0f\n", getmypid(), $count, $runTime, 1 / $runTime * $count);
         $c->disconnect();
     } else {
         ++$count;

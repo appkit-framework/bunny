@@ -39,7 +39,7 @@ for ($i = 0; $i < $max; $i++) {
 }
 
 $runTime = microtime(true) - $time;
-printf("Produce: Pid: %s, Time: %.6f, Msg/sec: %.0f\n", getmypid(), $runTime, (1 / $runTime) * $max);
+printf("Produce: Pid: %s, Time: %.6f, Msg/sec: %.0f\n", getmypid(), $runTime, 1 / $runTime * $max);
 
 $ch->publish('quit', [], 'bench_exchange');
 

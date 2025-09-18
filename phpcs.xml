@@ -4,7 +4,10 @@
     <arg name="encoding" value="utf-8"/>
     <arg name="colors"/>
     <arg value="sp"/>
+    <file>benchmark</file>
+    <file>examples</file>
     <file>src</file>
+    <file>tutorial</file>
     <file>test</file>
 <!--    <file>benchmark</file>-->
 <!--    <file>examples</file>-->
