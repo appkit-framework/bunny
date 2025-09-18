@@ -11,6 +11,7 @@ use function React\Async\await;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
+// phpcs:disabled
 class FibonacciRpcClient
 {
     private Client $client;
