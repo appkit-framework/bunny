@@ -242,4 +242,27 @@ class ChannelTest extends TestCase
         $c->disconnect();
         self::assertFalse($c->isConnected());
     }
+
+    public function testChannelClosingMidMessageHandling(): void
+    {
+        /**
+         * @var Deferred<string> $deferred
+         */
+        $deferred = new Deferred();
+        $c = $this->helper->createClient();
+
+        $ch = $c->connect()->channel();
+        self::assertTrue($c->isConnected());
+        $ch->queueDeclare('test_queue', false, false, false, true);
+        self::assertTrue($c->isConnected());
+        $ch->consume(async(static function (Message $msg, Channel $ch, Client $c) use ($deferred): void {
+            $c->disconnect();
+            $deferred->resolve($msg->content);
+        }), 'test_queue');
+        self::assertTrue($c->isConnected());
+        $ch->publish('hi', [], '', 'test_queue');
+        self::assertEquals('hi', await($deferred->promise()));
+
+        self::assertFalse($c->isConnected());
+    }
 }

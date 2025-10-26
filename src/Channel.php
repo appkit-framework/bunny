@@ -636,6 +636,15 @@ class Channel implements ChannelInterface, EventEmitterInterface
 
         $outcome = $callback($message, $this, $this->client);
 
+        /**
+         * Handle channel close getting called while handling a message.
+         * Also not handling more messages when the channel is closing or when it errors.
+         * Those put the channel in a state we can't consume any more messages.
+         */
+        if ($this->state === ChannelState::Closing || $this->state === ChannelState::Closed || $this->state === ChannelState::Error) {
+            return;
+        }
+
         if (!($outcome instanceof PromiseInterface)) {
             $this->consumeConcurrent[$consumerTag]--;
             $this->deliveryTick($consumerTag);
