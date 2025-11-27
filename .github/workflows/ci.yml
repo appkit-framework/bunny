@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - id: supported-versions-matrix
         uses: WyriHaximus/github-action-composer-php-versions-in-range@v1
+        with:
+          upcomingReleases: true
   static-anylsis:
     name: "Run static analysis on PHP ${{ matrix.php }}"
     runs-on: ubuntu-latest
