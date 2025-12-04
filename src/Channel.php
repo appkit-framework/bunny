@@ -111,6 +111,18 @@ class Channel implements ChannelInterface, EventEmitterInterface
 
     public function getClient(): Connection
     {
+        if ($this->state === ChannelState::Error) {
+            throw new ChannelException('Channel in error state.');
+        }
+
+        if ($this->state === ChannelState::Closing) {
+            throw new ChannelException('Channel is closing');
+        }
+
+        if ($this->state === ChannelState::Closed) {
+            throw new ChannelException('Channel is closed');
+        }
+
         return $this->connection;
     }
 
