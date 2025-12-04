@@ -60,6 +60,9 @@ final class Connection
         private readonly Channels $channels,
         private readonly Configuration $configuration,
     ) {
+        $this->connection->on('close', function(): void {
+            $this->client->disconnect(0, 'Connection lost', true);
+        });
         $this->connection->on('data', function (string $data): void {
             $this->readBuffer->append($data);
 
