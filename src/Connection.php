@@ -65,9 +65,19 @@ final class Connection
             while (($frame = $this->reader->consumeFrame($this->readBuffer)) !== null) {
                 $frameInAwaitList = false;
                 foreach ($this->awaitList as $index => $frameHandler) {
-                    if ($frameHandler['filter']($frame)) {
+                    $handled = null;
+                    $exception = null;
+                    try {
+                        $handled = $frameHandler['filter']($frame);
+                    } catch(\Throwable $e) {
+                        $exception = $e;
+                    }
+                    if ($exception || $handled) {
                         unset($this->awaitList[$index]);
-                        $frameHandler['promise']->resolve($frame);
+                        if($exception)
+                            $frameHandler['promise']->reject($exception);
+                        else
+                            $frameHandler['promise']->resolve($frame);
                         $frameInAwaitList = true;
                     }
                 }
