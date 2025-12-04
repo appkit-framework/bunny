@@ -9,6 +9,8 @@ use Bunny\Protocol\Buffer;
 use Bunny\Protocol\MethodConnectionStartFrame;
 use Bunny\Protocol\ProtocolReader;
 use Bunny\Protocol\ProtocolWriter;
+use Evenement\EventEmitterInterface;
+use Evenement\EventEmitterTrait;
 use InvalidArgumentException;
 use React\Promise\Deferred;
 use Throwable;
@@ -42,8 +44,10 @@ use function strpos;
  * @author Jakub Kulhan <jakub.kulhan@gmail.com>
  * @final Will be marked final in a future major release
  */
-class Client implements ClientInterface
+class Client implements ClientInterface, EventEmitterInterface
 {
+    use EventEmitterTrait;
+
     private readonly Configuration $configuration;
 
     private ClientState $state = ClientState::NotConnected;

@@ -76,16 +76,20 @@ final class Connection
                     continue;
                 }
 
-                if ($frame->channel === 0) {
-                    $this->onFrameReceived($frame);
-                    continue;
-                }
+                try {
+                    if ($frame->channel === 0) {
+                        $this->onFrameReceived($frame);
+                        continue;
+                    }
 
-                if (!$this->channels->has($frame->channel)) {
-                    throw new ClientException(sprintf('Received frame #%d on closed channel #%d.', $frame->type, $frame->channel));
-                }
+                    if (!$this->channels->has($frame->channel)) {
+                        throw new ClientException(sprintf('Received frame #%d on closed channel #%d.', $frame->type, $frame->channel));
+                    }
 
-                $this->channels->get($frame->channel)->onFrameReceived($frame);
+                    $this->channels->get($frame->channel)->onFrameReceived($frame);
+                } catch(\Throwable $e) {
+                    $this -> client -> emit('error', [$e]);
+                }
             }
         });
     }
