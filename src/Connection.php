@@ -105,9 +105,10 @@ final class Connection
         });
     }
 
-    public function disconnect(int $code, string $reason): void
+    public function disconnect(int $code, string $reason, bool $cleanupOnly): void
     {
-        $this->connectionClose($code, 0, 0, $reason);
+        if(!$cleanupOnly)
+            $this->connectionClose($code, 0, 0, $reason);
         $this->connection->close();
 
         if ($this->heartbeatTimer === null) {
@@ -123,7 +124,7 @@ final class Connection
     private function onFrameReceived(AbstractFrame $frame): void
     {
         if ($frame instanceof MethodConnectionCloseFrame) {
-            $this->client->disconnect(Constants::STATUS_CONNECTION_FORCED, sprintf('Connection closed by server: (%d) %s', $frame->replyCode, $frame->replyText));
+            $this->client->disconnect(Constants::STATUS_CONNECTION_FORCED, sprintf('Connection closed by server: (%d) %s', $frame->replyCode, $frame->replyText), true);
 
             throw new ClientException(sprintf('Connection closed by server: %s', $frame->replyText), $frame->replyCode);
         }

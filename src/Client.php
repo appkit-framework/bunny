@@ -279,7 +279,7 @@ class Client implements ClientInterface, EventEmitterInterface
     /**
      * Disconnects the client.
      */
-    public function disconnect(int $replyCode = 0, string $replyText = ''): void
+    public function disconnect(int $replyCode = 0, string $replyText = '', bool $cleanupOnly = false): void
     {
         if ($this->state === ClientState::Disconnecting) {
             return;
@@ -293,14 +293,14 @@ class Client implements ClientInterface, EventEmitterInterface
 
         $promises = [];
         foreach ($this->channels->all() as $channelId => $channel) {
-            $promises[] = async(static function () use ($channel, $replyCode, $replyText): void {
-                $channel->close($replyCode, $replyText);
+            $promises[] = async(static function () use ($channel, $replyCode, $replyText, $cleanupOnly): void {
+                $channel->close($replyCode, $replyText, $cleanupOnly);
             })();
         }
 
         await(all($promises));
 
-        $this->connection->disconnect($replyCode, $replyText);
+        $this->connection->disconnect($replyCode, $replyText, $cleanupOnly);
 
         $this->state = ClientState::NotConnected;
     }
