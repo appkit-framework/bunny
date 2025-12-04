@@ -291,6 +291,8 @@ class Client implements ClientInterface, EventEmitterInterface
 
         $this->state = ClientState::Disconnecting;
 
+        $this->emit('close');
+
         $promises = [];
         foreach ($this->channels->all() as $channelId => $channel) {
             $promises[] = async(static function () use ($channel, $replyCode, $replyText, $cleanupOnly): void {
