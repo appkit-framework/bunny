@@ -8,15 +8,19 @@ namespace Bunny\Test;
 
 use Bunny\Channel;
 use Bunny\Client;
+use Bunny\Constants;
 use Bunny\Exception\ChannelException;
 use Bunny\Message;
+use Bunny\Protocol\AbstractFrame;
 use Bunny\Test\Library\ClientHelper;
 use PHPUnit\Framework\TestCase;
 use React\Promise\Deferred;
+use Throwable;
 use WyriHaximus\React\PHPUnit\RunTestsInFibersTrait;
 use function React\Async\async;
 use function React\Async\await;
 use function React\Promise\Timer\sleep;
+use function spl_object_id;
 use function str_repeat;
 
 class ChannelTest extends TestCase
@@ -278,5 +282,36 @@ class ChannelTest extends TestCase
         $c->disconnect();
         self::assertFalse($c->isConnected());
         $ch->publish('hi', [], '', 'test_queue');
+    }
+
+    public function testEmitErrorInSteadOfSwallowingOnFrameReceived(): void
+    {
+        $c = $this->helper->createClient();
+
+        $clientError = null;
+        $c->on('error', static function (Throwable $err) use (&$clientError): void {
+            $clientError = $err;
+        });
+
+        $ch = $c->connect()->channel();
+
+        $channelError = null;
+        $ch->on('error', static function (Throwable $err) use (&$channelError): void {
+            $channelError = $err;
+        });
+
+        self::assertInstanceOf(Channel::class, $ch);
+        $ch->onFrameReceived(new class (Constants::CLASS_CONNECTION) extends AbstractFrame {
+        });
+
+        self::assertNotNull($clientError);
+        self::assertInstanceOf(ChannelException::class, $clientError);
+        self::assertStringContainsString('Unhandled frame Bunny\Protocol\AbstractFrame@anonymous', $clientError->getMessage());
+
+        self::assertNotNull($channelError);
+        self::assertInstanceOf(ChannelException::class, $channelError);
+        self::assertStringContainsString('Unhandled frame Bunny\Protocol\AbstractFrame@anonymous', $channelError->getMessage());
+
+        self::assertSame(spl_object_id($clientError), spl_object_id($channelError));
     }
 }

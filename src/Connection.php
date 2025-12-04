@@ -14,11 +14,14 @@ use Bunny\Protocol\MethodConnectionCloseFrame;
 use Bunny\Protocol\MethodFrame;
 use Bunny\Protocol\ProtocolReader;
 use Bunny\Protocol\ProtocolWriter;
+use Evenement\EventEmitterInterface;
+use Evenement\EventEmitterTrait;
 use React\EventLoop\Loop;
 use React\EventLoop\TimerInterface;
 use React\Promise\Deferred;
 use React\Promise\Promise;
 use React\Socket\ConnectionInterface;
+use Throwable;
 use function React\Async\await;
 use function count;
 use function is_callable;
@@ -37,8 +40,10 @@ use function substr;
  *
  * @author Jakub Kulhan <jakub.kulhan@gmail.com>
  */
-final class Connection
+final class Connection implements EventEmitterInterface
 {
+    use EventEmitterTrait;
+
     protected ?TimerInterface $heartbeatTimer = null;
 
     protected float $lastWrite = 0.0;
@@ -76,16 +81,20 @@ final class Connection
                     continue;
                 }
 
-                if ($frame->channel === 0) {
-                    $this->onFrameReceived($frame);
-                    continue;
-                }
+                try {
+                    if ($frame->channel === 0) {
+                        $this->onFrameReceived($frame);
+                        continue;
+                    }
 
-                if (!$this->channels->has($frame->channel)) {
-                    throw new ClientException(sprintf('Received frame #%d on closed channel #%d.', $frame->type, $frame->channel));
-                }
+                    if (!$this->channels->has($frame->channel)) {
+                        throw new ClientException(sprintf('Received frame #%d on closed channel #%d.', $frame->type, $frame->channel));
+                    }
 
-                $this->channels->get($frame->channel)->onFrameReceived($frame);
+                    $this->channels->get($frame->channel)->onFrameReceived($frame);
+                } catch (Throwable $error) {
+                    $this->emit('error', [$error]);
+                }
             }
         });
     }
