@@ -11,8 +11,10 @@ use Bunny\Channel;
 use Bunny\Client;
 use Bunny\Message;
 use React\EventLoop\Loop;
+use RuntimeException;
 use function Bunny\Test\Library\parseAmqpUri;
 use function array_shift;
+use function count;
 use function pcntl_signal;
 use const SIGINT;
 
@@ -42,6 +44,14 @@ function app(array $args): void
     Loop::addTimer($args['maxSeconds'], static function () use ($client): void {
         $client->disconnect();
     });
+}
+
+if (!isset($argv)) {
+    throw new RuntimeException('No argv found');
+}
+
+if (count($argv) < 4) {
+    throw new RuntimeException('Expecting at least 3 arguments, got ' . (count($argv) - 1));
 }
 
 $argvCopy = $argv;
