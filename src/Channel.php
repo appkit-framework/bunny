@@ -109,7 +109,7 @@ class Channel implements ChannelInterface, EventEmitterInterface
         $this->bodyBuffer = new Buffer();
     }
 
-    public function getClient(): Connection
+    protected function getClient(): Connection
     {
         if ($this->state === ChannelState::Error) {
             throw new ChannelException('Channel in error state.');
