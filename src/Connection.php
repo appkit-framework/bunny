@@ -123,17 +123,17 @@ final class Connection
     private function onFrameReceived(AbstractFrame $frame): void
     {
         if ($frame instanceof MethodConnectionCloseFrame) {
-            $this->disconnect(Constants::STATUS_CONNECTION_FORCED, sprintf('Connection closed by server: (%d) %s', $frame->replyCode, $frame->replyText));
+            $this->client->disconnect(Constants::STATUS_CONNECTION_FORCED, sprintf('Connection closed by server: (%d) %s', $frame->replyCode, $frame->replyText));
 
             throw new ClientException(sprintf('Connection closed by server: %s', $frame->replyText), $frame->replyCode);
         }
 
         if ($frame instanceof ContentHeaderFrame) {
-            $this->disconnect(Constants::STATUS_UNEXPECTED_FRAME, 'Got header frame on connection channel (#0).');
+            $this->client->disconnect(Constants::STATUS_UNEXPECTED_FRAME, 'Got header frame on connection channel (#0).');
         }
 
         if ($frame instanceof ContentBodyFrame) {
-            $this->disconnect(Constants::STATUS_UNEXPECTED_FRAME, 'Got body frame on connection channel (#0).');
+            $this->client->disconnect(Constants::STATUS_UNEXPECTED_FRAME, 'Got body frame on connection channel (#0).');
         }
 
         if ($frame instanceof HeartbeatFrame) {
