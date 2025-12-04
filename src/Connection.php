@@ -11,6 +11,7 @@ use Bunny\Protocol\ContentBodyFrame;
 use Bunny\Protocol\ContentHeaderFrame;
 use Bunny\Protocol\HeartbeatFrame;
 use Bunny\Protocol\MethodConnectionCloseFrame;
+use Bunny\Protocol\MethodChannelCloseFrame;
 use Bunny\Protocol\MethodFrame;
 use Bunny\Protocol\ProtocolReader;
 use Bunny\Protocol\ProtocolWriter;
@@ -82,7 +83,7 @@ final class Connection
                     }
                 }
 
-                if ($frameInAwaitList) {
+                if ($frameInAwaitList && ! $frame instanceof MethodConnectionCloseFrame && ! $frame instanceof MethodChannelCloseFrame) {
                     continue;
                 }
 
