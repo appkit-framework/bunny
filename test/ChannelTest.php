@@ -265,4 +265,18 @@ class ChannelTest extends TestCase
 
         self::assertFalse($c->isConnected());
     }
+
+    public function testAttemptingToOperateOnANoLongerConnectedConnectionThrows(): void
+    {
+        self::expectException(ChannelException::class);
+        self::expectExceptionMessage('Channel is closed');
+
+        $c = $this->helper->createClient();
+
+        $ch = $c->connect()->channel();
+        self::assertTrue($c->isConnected());
+        $c->disconnect();
+        self::assertFalse($c->isConnected());
+        $ch->publish('hi', [], '', 'test_queue');
+    }
 }
