@@ -25,12 +25,12 @@ use Bunny\Protocol\MethodFrame;
 use Bunny\Protocol\MethodTxCommitOkFrame;
 use Bunny\Protocol\MethodTxRollbackOkFrame;
 use Bunny\Protocol\MethodTxSelectOkFrame;
-use Evenement\EventEmitterInterface;
 use Evenement\EventEmitterTrait;
 use LogicException;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use SplQueue;
+use Throwable;
 use function React\Async\async;
 use function React\Async\await;
 use function array_key_exists;
@@ -47,7 +47,7 @@ use function sprintf;
  * @author Jakub Kulhan <jakub.kulhan@gmail.com>
  * @final Will be marked final in a future major release
  */
-class Channel implements ChannelInterface, EventEmitterInterface
+class Channel implements ChannelInterface
 {
     use EventEmitterTrait;
     use ChannelMethods {
@@ -438,141 +438,145 @@ class Channel implements ChannelInterface, EventEmitterInterface
      */
     public function onFrameReceived(AbstractFrame $frame): void
     {
-        if ($this->state === ChannelState::Error) {
-            throw new ChannelException('Channel in error state.');
-        }
-
-        if ($this->state === ChannelState::Closed) {
-            throw new ChannelException(sprintf('Received frame #%d on closed channel #%d.', $frame->type, $this->channelId));
-        }
-
-        if ($frame instanceof MethodFrame) {
-            if ($this->state === ChannelState::Closing && !($frame instanceof MethodChannelCloseOkFrame)) {
-                // drop frames in closing state
-                return;
+        try {
+            if ($this->state === ChannelState::Error) {
+                throw new ChannelException('Channel in error state.');
             }
 
-            if ($this->state !== ChannelState::Ready && !($frame instanceof MethodChannelCloseOkFrame)) {
-                $currentState = $this->state;
-                $this->state = ChannelState::Error;
+            if ($this->state === ChannelState::Closed) {
+                throw new ChannelException(sprintf('Received frame #%d on closed channel #%d.', $frame->type, $this->channelId));
+            }
 
-                if ($currentState === ChannelState::AwaitingHeader) {
-                    $msg = 'Got method frame, expected header frame.';
-                } elseif ($currentState === ChannelState::AwaitingBody) {
-                    $msg = 'Got method frame, expected body frame.';
+            if ($frame instanceof MethodFrame) {
+                if ($this->state === ChannelState::Closing && !($frame instanceof MethodChannelCloseOkFrame)) {
+                    // drop frames in closing state
+                    return;
+                }
+
+                if ($this->state !== ChannelState::Ready && !($frame instanceof MethodChannelCloseOkFrame)) {
+                    $currentState = $this->state;
+                    $this->state = ChannelState::Error;
+
+                    if ($currentState === ChannelState::AwaitingHeader) {
+                        $msg = 'Got method frame, expected header frame.';
+                    } elseif ($currentState === ChannelState::AwaitingBody) {
+                        $msg = 'Got method frame, expected body frame.';
+                    } else {
+                        throw new LogicException('Unhandled channel state.');
+                    }
+
+                    $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, $msg);
+
+                    throw new ChannelException('Unexpected frame: ' . $msg);
+                }
+
+                if ($frame instanceof MethodChannelCloseOkFrame) {
+                    $this->state = ChannelState::Closed;
+
+                    if ($this->closeDeferred !== null) {
+                        $this->closeDeferred->resolve($this->channelId);
+                    }
+
+                    // break reference cycle, must be called after resolving promise
+                    // $this->client = null;
+                    // break consumers' reference cycle
+                    $this->consumeConcurrency = [];
+                    $this->consumeConcurrent = [];
+                    $this->deliverCallbacks = [];
+                    $this->deliveryQueue = [];
+                } elseif ($frame instanceof MethodBasicReturnFrame) {
+                    $this->returnFrame = $frame;
+                    $this->state = ChannelState::AwaitingHeader;
+                } elseif ($frame instanceof MethodBasicDeliverFrame) {
+                    $this->deliverFrame = $frame;
+                    $this->state = ChannelState::AwaitingHeader;
+                } elseif ($frame instanceof MethodBasicAckFrame) {
+                    foreach ($this->ackCallbacks as $callback) {
+                        $callback($frame);
+                    }
+                } elseif ($frame instanceof MethodBasicNackFrame) {
+                    foreach ($this->ackCallbacks as $callback) {
+                        $callback($frame);
+                    }
+                } elseif ($frame instanceof MethodChannelCloseFrame) {
+                    throw new ChannelException('Channel closed by server: ' . $frame->replyText, $frame->replyCode);
                 } else {
-                    throw new LogicException('Unhandled channel state.');
+                    throw new ChannelException('Unhandled method frame ' . $frame::class . '.');
+                }
+            } elseif ($frame instanceof ContentHeaderFrame) {
+                if ($this->state === ChannelState::Closing) {
+                    // drop frames in closing state
+                    return;
                 }
 
-                $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, $msg);
+                if ($this->state !== ChannelState::AwaitingHeader) {
+                    $currentState = $this->state;
+                    $this->state = ChannelState::Error;
 
-                throw new ChannelException('Unexpected frame: ' . $msg);
-            }
+                    if ($currentState === ChannelState::Ready) {
+                        $msg = 'Got header frame, expected method frame.';
+                    } elseif ($currentState === ChannelState::AwaitingBody) {
+                        $msg = 'Got header frame, expected content frame.';
+                    } else {
+                        throw new LogicException('Unhandled channel state.');
+                    }
 
-            if ($frame instanceof MethodChannelCloseOkFrame) {
-                $this->state = ChannelState::Closed;
+                    $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, $msg);
 
-                if ($this->closeDeferred !== null) {
-                    $this->closeDeferred->resolve($this->channelId);
+                    throw new ChannelException('Unexpected frame: ' . $msg);
                 }
 
-//                // break reference cycle, must be called after resolving promise
-//                $this->client = null;
-                // break consumers' reference cycle
-                $this->consumeConcurrency = [];
-                $this->consumeConcurrent = [];
-                $this->deliverCallbacks = [];
-                $this->deliveryQueue = [];
-            } elseif ($frame instanceof MethodBasicReturnFrame) {
-                $this->returnFrame = $frame;
-                $this->state = ChannelState::AwaitingHeader;
-            } elseif ($frame instanceof MethodBasicDeliverFrame) {
-                $this->deliverFrame = $frame;
-                $this->state = ChannelState::AwaitingHeader;
-            } elseif ($frame instanceof MethodBasicAckFrame) {
-                foreach ($this->ackCallbacks as $callback) {
-                    $callback($frame);
+                $this->headerFrame = $frame;
+                $this->bodySizeRemaining = $frame->bodySize;
+
+                if ($this->bodySizeRemaining > 0) {
+                    $this->state = ChannelState::AwaitingBody;
+                } else {
+                    $this->state = ChannelState::Ready;
+                    $this->onBodyComplete();
                 }
-            } elseif ($frame instanceof MethodBasicNackFrame) {
-                foreach ($this->ackCallbacks as $callback) {
-                    $callback($frame);
+            } elseif ($frame instanceof ContentBodyFrame) {
+                if ($this->state === ChannelState::Closing) {
+                    // drop frames in closing state
+                    return;
                 }
-            } elseif ($frame instanceof MethodChannelCloseFrame) {
-                throw new ChannelException('Channel closed by server: ' . $frame->replyText, $frame->replyCode);
+
+                if ($this->state !== ChannelState::AwaitingBody) {
+                    $currentState = $this->state;
+                    $this->state = ChannelState::Error;
+
+                    if ($currentState === ChannelState::Ready) {
+                        $msg = 'Got body frame, expected method frame.';
+                    } elseif ($currentState === ChannelState::AwaitingHeader) {
+                        $msg = 'Got body frame, expected header frame.';
+                    } else {
+                        throw new LogicException('Unhandled channel state.');
+                    }
+
+                    $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, $msg);
+
+                    throw new ChannelException('Unexpected frame: ' . $msg);
+                }
+
+                $this->bodyBuffer->append($frame->payload);
+                $this->bodySizeRemaining -= $frame->payloadSize;
+
+                if ($this->bodySizeRemaining < 0) {
+                    $this->state = ChannelState::Error;
+                    $this->connection->disconnect(Constants::STATUS_SYNTAX_ERROR, 'Body overflow, received ' . (-$this->bodySizeRemaining) . ' more bytes.');
+                } elseif ($this->bodySizeRemaining === 0) {
+                    $this->state = ChannelState::Ready;
+                    $this->onBodyComplete();
+                }
+            } elseif ($frame instanceof HeartbeatFrame) {
+                $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, 'Got heartbeat on non-zero channel.');
+
+                throw new ChannelException('Unexpected heartbeat frame.');
             } else {
-                throw new ChannelException('Unhandled method frame ' . $frame::class . '.');
+                throw new ChannelException('Unhandled frame ' . $frame::class . '.');
             }
-        } elseif ($frame instanceof ContentHeaderFrame) {
-            if ($this->state === ChannelState::Closing) {
-                // drop frames in closing state
-                return;
-            }
-
-            if ($this->state !== ChannelState::AwaitingHeader) {
-                $currentState = $this->state;
-                $this->state = ChannelState::Error;
-
-                if ($currentState === ChannelState::Ready) {
-                    $msg = 'Got header frame, expected method frame.';
-                } elseif ($currentState === ChannelState::AwaitingBody) {
-                    $msg = 'Got header frame, expected content frame.';
-                } else {
-                    throw new LogicException('Unhandled channel state.');
-                }
-
-                $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, $msg);
-
-                throw new ChannelException('Unexpected frame: ' . $msg);
-            }
-
-            $this->headerFrame = $frame;
-            $this->bodySizeRemaining = $frame->bodySize;
-
-            if ($this->bodySizeRemaining > 0) {
-                $this->state = ChannelState::AwaitingBody;
-            } else {
-                $this->state = ChannelState::Ready;
-                $this->onBodyComplete();
-            }
-        } elseif ($frame instanceof ContentBodyFrame) {
-            if ($this->state === ChannelState::Closing) {
-                // drop frames in closing state
-                return;
-            }
-
-            if ($this->state !== ChannelState::AwaitingBody) {
-                $currentState = $this->state;
-                $this->state = ChannelState::Error;
-
-                if ($currentState === ChannelState::Ready) {
-                    $msg = 'Got body frame, expected method frame.';
-                } elseif ($currentState === ChannelState::AwaitingHeader) {
-                    $msg = 'Got body frame, expected header frame.';
-                } else {
-                    throw new LogicException('Unhandled channel state.');
-                }
-
-                $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, $msg);
-
-                throw new ChannelException('Unexpected frame: ' . $msg);
-            }
-
-            $this->bodyBuffer->append($frame->payload);
-            $this->bodySizeRemaining -= $frame->payloadSize;
-
-            if ($this->bodySizeRemaining < 0) {
-                $this->state = ChannelState::Error;
-                $this->connection->disconnect(Constants::STATUS_SYNTAX_ERROR, 'Body overflow, received ' . (-$this->bodySizeRemaining) . ' more bytes.');
-            } elseif ($this->bodySizeRemaining === 0) {
-                $this->state = ChannelState::Ready;
-                $this->onBodyComplete();
-            }
-        } elseif ($frame instanceof HeartbeatFrame) {
-            $this->connection->disconnect(Constants::STATUS_UNEXPECTED_FRAME, 'Got heartbeat on non-zero channel.');
-
-            throw new ChannelException('Unexpected heartbeat frame.');
-        } else {
-            throw new ChannelException('Unhandled frame ' . $frame::class . '.');
+        } catch (Throwable $e) {
+            $this->emit('error', [$e]);
         }
     }
 

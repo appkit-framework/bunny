@@ -21,6 +21,7 @@ use Bunny\Protocol\MethodQueueUnbindOkFrame;
 use Bunny\Protocol\MethodTxCommitOkFrame;
 use Bunny\Protocol\MethodTxRollbackOkFrame;
 use Bunny\Protocol\MethodTxSelectOkFrame;
+use Evenement\EventEmitterInterface;
 
 /**
  * AMQP channel.
@@ -31,7 +32,7 @@ use Bunny\Protocol\MethodTxSelectOkFrame;
  * @author Jakub Kulhan <jakub.kulhan@gmail.com>
  * @final Will be marked final in a future major release
  */
-interface ChannelInterface
+interface ChannelInterface extends EventEmitterInterface
 {
     /**
      * Returns the channel mode.
